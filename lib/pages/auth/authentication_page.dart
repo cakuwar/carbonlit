@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import 'signup_page.dart';
@@ -15,6 +16,15 @@ class _AuthenticationPageState extends State<AuthenticationPage> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  String _selectedRole = 'student'; // default
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Read the role passed from AccessPage
+    final role = ModalRoute.of(context)?.settings.arguments as String?;
+    if (role != null) _selectedRole = role.toLowerCase();
+  }
 
   @override
   void dispose() {
@@ -154,7 +164,7 @@ class _AuthenticationPageState extends State<AuthenticationPage> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => const SignUpPage(),
+                                            builder: (context) => SignUpPage(role: _selectedRole),
                                           ),
                                         );
                                       },
@@ -365,23 +375,17 @@ class _AuthenticationPageState extends State<AuthenticationPage> {
 
                                 // Continue with Google
                                 _buildSocialButton(
-                                  icon: Icons.g_mobiledata,
+                                  svgPath: 'assets/images/google_logo.svg',
                                   label: 'Continue with Google',
-                                  iconColor: const Color(0xFF4285F4),
-                                  onTap: () {
-                                    // TODO: Implement Google sign-in
-                                  },
+                                  onTap: () => _handleGoogleSignIn(authProvider),
                                 ),
                                 SizedBox(height: 15 * scaleY),
 
                                 // Continue with Microsoft
                                 _buildSocialButton(
-                                  icon: Icons.window,
+                                  svgPath: 'assets/images/microsoft_logo.svg',
                                   label: 'Continue with Microsoft',
-                                  iconColor: const Color(0xFF00A4EF),
-                                  onTap: () {
-                                    // TODO: Implement Microsoft sign-in
-                                  },
+                                  onTap: () => _handleMicrosoftSignIn(authProvider),
                                 ),
                               ],
                             ),
@@ -492,9 +496,8 @@ class _AuthenticationPageState extends State<AuthenticationPage> {
   }
 
   Widget _buildSocialButton({
-    required IconData icon,
+    required String svgPath,
     required String label,
-    required Color iconColor,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -516,7 +519,11 @@ class _AuthenticationPageState extends State<AuthenticationPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: iconColor, size: 18),
+            SvgPicture.asset(
+              svgPath,
+              width: 20,
+              height: 20,
+            ),
             const SizedBox(width: 10),
             Text(
               label,
@@ -535,27 +542,62 @@ class _AuthenticationPageState extends State<AuthenticationPage> {
     );
   }
 
+  /// Handle Google sign-in via Supabase OAuth
+  Future<void> _handleGoogleSignIn(AuthProvider authProvider) async {
+    await authProvider.signInWithGoogle();
+    // Navigation is handled by the auth state listener in AuthProvider
+    // After OAuth completes, the onAuthStateChange listener fires
+    // and updates the user state, triggering a rebuild
+    if (authProvider.isAuthenticated && mounted) {
+      if (authProvider.isAdmin) {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
+  }
+
+  /// Handle Microsoft sign-in via Supabase OAuth
+  Future<void> _handleMicrosoftSignIn(AuthProvider authProvider) async {
+    await authProvider.signInWithMicrosoft();
+    if (authProvider.isAuthenticated && mounted) {
+      if (authProvider.isAdmin) {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
+  }
+
+  /// Handle login — validates input, calls Supabase auth, then navigates on success.
+  /// FIX: The original code had auth logic commented out and just navigated directly,
+  /// bypassing authentication entirely.
   Future<void> _handleAuth(AuthProvider authProvider) async {
-    // if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     const SnackBar(
-    //       content: Text('Please fill all fields'),
-    //       backgroundColor: Colors.red,
-    //     ),
-    //   );
-    //   return;
-     Navigator.pushReplacementNamed(context, '/home');
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all fields'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
-//     // TODO: Replace with backend authentication
-//     await authProvider.signIn(
-//       email: _emailController.text,
-//       password: _passwordController.text,
-//     );
+    await authProvider.signIn(
+      email: email,
+      password: password,
+    );
 
-//     // Navigate to home if authenticated
-//     if (authProvider.isAuthenticated && mounted) {
-//       Navigator.pushReplacementNamed(context, '/home');
-//     }
-//   }
+    // Navigate based on role after successful login
+    if (authProvider.isAuthenticated && mounted) {
+      if (authProvider.isAdmin) {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
+  }
 }

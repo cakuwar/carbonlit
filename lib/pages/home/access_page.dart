@@ -54,7 +54,11 @@ class AccessPage extends StatelessWidget {
               right: 60 * scaleX,
               top: 320 * scaleY,
               child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/auth'),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  '/auth',
+                  arguments: 'student',
+                ),
                 child: Container(
                   height: 48 * scaleY,
                   decoration: ShapeDecoration(
@@ -102,7 +106,11 @@ class AccessPage extends StatelessWidget {
               right: 60 * scaleX,
               top: 390 * scaleY,
               child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/auth'),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  '/auth',
+                  arguments: 'admin',
+                ),
                 child: Container(
                   height: 48 * scaleY,
                   decoration: ShapeDecoration(

@@ -1,13 +1,79 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../providers/auth_provider.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
+  static const Color _primaryGreen = Color(0xFF115925);
+
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  String _firstName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
+    _animController.forward();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      // Load name
+      final profile = await supabase
+          .from('profiles')
+          .select('first_name')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _firstName = profile?['first_name'] as String? ?? '';
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final width = size.width;
     final height = size.height;
+
+    final authProvider = Provider.of<AuthProvider>(context);
+    final meta = authProvider.user?.userMetadata ?? {};
+    final displayName = _firstName.isNotEmpty
+        ? _firstName
+        : (meta['first_name'] as String? ?? '');
 
     return Scaffold(
       body: Container(
@@ -28,142 +94,318 @@ class HomePage extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Forest background at the bottom
+            // ── Forest background ──
             Positioned(
               bottom: 0,
               left: -50,
               right: 0,
               child: Image.asset(
-                'assets/images/forest.png', // Replace with your forest image path
+                'assets/images/forest.png',
                 fit: BoxFit.cover,
-                height: height * 0.85, // Adjust height dynamically,
+                height: height * 0.72,
               ),
             ),
+
+            // ── Content ──
             SafeArea(
-              child: Column(
-                children: [
-                  // Top bar with profile picture
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: width * 0.05,
-                      vertical: height * 0.02,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                        width * 0.05, height * 0.01, width * 0.05, 30),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                        'Welcome!',
-                        style: TextStyle(
-                          color: Color(0xFF010101),
-                          fontSize: 35,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                        GestureDetector(
-                          onTap: () {
-                            // Add navigation or action for profile
-                            Navigator.pushNamed(context, '/profile');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Profile tapped')),
-                            );
-                          },
-                          child: CircleAvatar(
-                            radius: width * 0.10,
-                            backgroundColor: const Color.fromRGBO(241, 239, 239, 1),
-                            backgroundImage: AssetImage('assets/images/profile.png'), // Replace with your profile image path
+                        // ── Top bar ──
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: height * 0.015),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      displayName.isNotEmpty
+                                          ? 'Hello, $displayName \u{1F44B}'
+                                          : 'Hello! \u{1F44B}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF0D0D0D),
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Track your carbon footprint today',
+                                      style: TextStyle(
+                                        color: Color(0xFF444444),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () =>
+                                    Navigator.pushNamed(context, '/personal'),
+                                child: Container(
+                                  width: 52,
+                                  height: 52,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: _primaryGreen, width: 2.5),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            _primaryGreen.withOpacity(0.25),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/images/profile.png',
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ── Quote Card ──
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.75),
+                            borderRadius: BorderRadius.circular(16),
+                            border: const Border(
+                              left: BorderSide(color: _primaryGreen, width: 4),
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.eco,
+                                  color: _primaryGreen, size: 22),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text(
+                                  'Your footprint tells a story \u2014 make it one of responsibility and positive change.',
+                                  style: TextStyle(
+                                    color: Color(0xFF2A2A2A),
+                                    fontSize: 13,
+                                    fontStyle: FontStyle.italic,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // ── HERO: Carbon Calculator ──
+                        _HeroButton(
+                          label: 'Carbon Calculator',
+                          subtitle: 'Log your daily footprint',
+                          icon: Icons.calculate_rounded,
+                          onTap: () =>
+                              Navigator.pushNamed(context, '/carbon_calculator'),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // ── Secondary row ──
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SecondaryButton(
+                                label: 'Leaderboard',
+                                icon: Icons.emoji_events_rounded,
+                                iconColor: const Color(0xFFFFCC00),
+                                onTap: () =>
+                                    Navigator.pushNamed(context, '/leaderboard'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _SecondaryButton(
+                                label: 'Dashboard',
+                                icon: Icons.bar_chart_rounded,
+                                iconColor: const Color(0xFF64D2FF),
+                                onTap: () =>
+                                    Navigator.pushNamed(context, '/dashboard'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(height: height * 0.02),
-                  // Subtitle text
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: width * 0.1),
-                    child: const Text(
-                      'Your footprint tells a story. Let’s make it one of responsibility, awareness and positive change.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFF010101),
-                        fontSize: 15,
-                        fontStyle: FontStyle.italic,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Hero Button (Carbon Calculator)
+// ─────────────────────────────────────────────
+class _HeroButton extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _HeroButton({
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF115925), Color(0xFF1B8C3D)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF115925).withOpacity(0.45),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
                   ),
-                  SizedBox(height: height * 0.05),
-                  // Carbon Calculator button
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/carbon_calculator');
-                      // Add navigation or action for Carbon Calculator
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Carbon Calculator tapped')),
-                      );
-                    },
-                    child: Container(
-                      width: width * 0.7,
-                      height: height * 0.08,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF115925),
-                        borderRadius: BorderRadius.circular(50),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x3F000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Carbon Calculator',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 12,
                   ),
-                  SizedBox(height: height * 0.03),
-                  // Dashboard button
-                  GestureDetector(
-                    onTap: () {
-                      // Add navigation or action for Dashboard
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Dashboard tapped')),
-                      );
-                    },
-                    child: Container(
-                      width: width * 0.7,
-                      height: height * 0.08,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF115925),
-                        borderRadius: BorderRadius.circular(50),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x3F000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Dashboard',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            const Spacer(),
+            Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white.withOpacity(0.7), size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Secondary Button (Leaderboard / Dashboard)
+// ─────────────────────────────────────────────
+class _SecondaryButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  const _SecondaryButton({
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.88),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 26),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF1A1A1A),
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],

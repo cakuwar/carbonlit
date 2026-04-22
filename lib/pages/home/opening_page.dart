@@ -109,4 +109,3 @@ class OpeningPage extends StatelessWidget {
     );
   }
 }
-
