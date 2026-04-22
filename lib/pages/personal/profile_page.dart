@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import 'edit_profile_page.dart';
 import 'security_page.dart';
 import 'notifications_page.dart';
@@ -61,6 +63,11 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get the authenticated user's display name from Supabase metadata
+    final authProvider = Provider.of<AuthProvider>(context);
+    final meta = authProvider.user?.userMetadata ?? {};
+    final displayName = meta['first_name'] ?? authProvider.user?.email ?? 'User';
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF115925),
@@ -94,7 +101,7 @@ class ProfilePage extends StatelessWidget {
                   ),
                   SizedBox(height: 10),
                   Text(
-                    'Naravit',
+                    displayName,
                     style: TextStyle(
                       color: const Color.fromRGBO(241, 239, 239, 1),
                       fontSize: 20,
@@ -160,6 +167,13 @@ class ProfilePage extends StatelessWidget {
                     leading: Icon(Icons.policy),
                     title: Text('Terms and Policies'),
                     onTap: () => _navigateToTermsPolicies(context),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Sign Out'),
+                    onTap: () {
+                      Navigator.pushReplacementNamed(context, '/opening');
+                    },
                   ),
                 ],
               ),

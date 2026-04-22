@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:country_picker/country_picker.dart'; // Updated import
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 
 class SignUpPage extends StatefulWidget {
-  const SignUpPage({super.key});
+  final String role;
+  const SignUpPage({super.key, this.role = 'student'});
 
   @override
   State<SignUpPage> createState() => _SignUpPageState();
@@ -48,6 +50,7 @@ class _SignUpPageState extends State<SignUpPage> {
         'student_id': _studentIdController.text.trim(),
         'phone': _phoneController.text.trim(),
         'country': _selectedCountry.name,
+        'role': widget.role, // Pass the selected role (admin or student)
       };
 
       try {
@@ -57,14 +60,24 @@ class _SignUpPageState extends State<SignUpPage> {
           metadata: metadata,
         );
 
+        if (!mounted) return;
         if (authProvider.isAuthenticated) {
-          Navigator.pushReplacementNamed(context, '/home');
+          // Route based on the role explicitly chosen on AccessPage.
+          // Use widget.role directly — avoids DB fetch timing issues
+          // where _fetchRole() may default to 'student' before the
+          // profile row is fully committed.
+          if (widget.role.toLowerCase() == 'admin') {
+            Navigator.pushReplacementNamed(context, '/admin');
+          } else {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(authProvider.error ?? 'Sign-up failed')),
           );
         }
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
         );
@@ -72,15 +85,31 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
-  // TODO: Implement Google Sign Up
-  // void _handleGoogleSignUp() async {
-  //   // TODO: Implement Google OAuth flow
-  // }
+  // Google Sign Up via Supabase OAuth
+  Future<void> _handleGoogleSignUp() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.signInWithGoogle();
+    if (authProvider.isAuthenticated && mounted) {
+      if (authProvider.isAdmin) {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
+  }
 
-  // TODO: Implement Microsoft Sign Up
-  // void _handleMicrosoftSignUp() async {
-  //   // TODO: Implement Microsoft OAuth flow
-  // }
+  // Microsoft Sign Up via Supabase OAuth
+  Future<void> _handleMicrosoftSignUp() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    await authProvider.signInWithMicrosoft();
+    if (authProvider.isAuthenticated && mounted) {
+      if (authProvider.isAdmin) {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -286,20 +315,18 @@ class _SignUpPageState extends State<SignUpPage> {
                               // Google Sign Up
                               _buildSocialButton(
                                 text: 'Sign up with Google',
-                                iconPath: 'assets/icons/google.png',
+                                iconPath: 'assets/images/google_logo.svg',
                                 onTap: () {
-                                  // TODO: Implement Google sign up
-                                  // _handleGoogleSignUp();
+                                  _handleGoogleSignUp();
                                 },
                               ),
                               const SizedBox(height: 12),
                               // Microsoft Sign Up
                               _buildSocialButton(
                                 text: 'Sign up with Microsoft',
-                                iconPath: 'assets/icons/microsoft.png',
+                                iconPath: 'assets/images/microsoft_logo.svg',
                                 onTap: () {
-                                  // TODO: Implement Microsoft sign up
-                                  // _handleMicrosoftSignUp();
+                                  _handleMicrosoftSignUp();
                                 },
                               ),
                             ],
@@ -649,21 +676,10 @@ class _SignUpPageState extends State<SignUpPage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icon placeholder - replace with actual icons
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: text.contains('Google')
-                  ? const Text('G', style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4285F4),
-                    ))
-                  : const Text('⊞', style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF00A4EF),
-                    )),
+            SvgPicture.asset(
+              iconPath,
+              width: 20,
+              height: 20,
             ),
             const SizedBox(width: 10),
             Text(

@@ -21,6 +21,9 @@ import 'pages/calculator/accomo.dart';
 import 'package:geolocator/geolocator.dart';
 import 'pages/result/personal_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'pages/admin/admin_carboncalc.dart';
+import 'pages/admin/dashboard_page.dart';
+import 'pages/home/leaderboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,13 +81,21 @@ class CarbonLitApp extends StatelessWidget {
           '/gadgets': (context) => GadgetsPage(),
           '/accommodation': (context) => AccommodationPage(),
           '/personal': (context) => PersonalPage(),
+          '/admin': (context) => const AdminCalc(),
+          '/admincarboncal': (context) => const AdminCalc(),
+          '/admin/calculator': (context) => const AdminCalc(initialIndex: 0),
+          '/admin/campus': (context) => const AdminCalc(initialIndex: 1),
+          '/admin/manage': (context) => const AdminCalc(initialIndex: 2),
+          '/dashboard': (context) => const DashboardPage(),
+          '/leaderboard': (context) => const LeaderboardPage(),
         },
       ),
     );
   }
 }
 
-/// AppWrapper handles the initial routing logic
+/// AppWrapper handles the initial routing logic.
+/// Routes admin users to the AdminCalc shell, students to HomePage.
 class AppWrapper extends StatelessWidget {
   const AppWrapper({super.key});
 
@@ -92,11 +103,14 @@ class AppWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
-        // If user is authenticated, go to home
         if (authProvider.isAuthenticated) {
+          // Route based on role
+          if (authProvider.isAdmin) {
+            return const AdminCalc();
+          }
           return const HomePage();
         }
-        // Otherwise show the opening page (splash/welcome)
+        // Not logged in — show welcome/opening page
         return const OpeningPage();
       },
     );

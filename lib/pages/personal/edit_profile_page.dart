@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/db_service.dart';
 
+/// EditProfilePage — Loads user profile from Supabase and saves changes back.
+///
+/// KEY FIXES:
+/// - initState now fetches real user data from Supabase auth metadata
+/// - _saveProfile now upserts to a 'profiles' table via DatabaseService
+/// - Added loading/error states and async-safe mounted checks
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
 
@@ -8,52 +16,80 @@ class EditProfilePage extends StatefulWidget {
 }
 
 class _EditProfilePageState extends State<EditProfilePage> {
+  final DatabaseService _db = DatabaseService();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
+  bool _isLoading = true;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    // TODO: Fetch user data from backend and populate the controllers
-    _firstNameController.text = 'John'; // Replace with actual data
-    _lastNameController.text = 'Doe'; // Replace with actual data
-    _emailController.text = 'johndoe@example.com'; // Replace with actual data
-    _phoneController.text = '123-456-7890'; // Replace with actual data
-    _addressController.text = '123 Main Street'; // Replace with actual data
+    _loadProfile();
   }
 
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _addressController.dispose();
-    super.dispose();
+  /// Load profile data from Supabase auth user metadata + profiles table
+  Future<void> _loadProfile() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      // Populate from auth metadata (set during sign-up)
+      final meta = user.userMetadata ?? {};
+      _emailController.text = user.email ?? '';
+      _firstNameController.text = meta['first_name'] ?? '';
+      _lastNameController.text = meta['last_name'] ?? '';
+      _phoneController.text = meta['phone'] ?? '';
+
+      // Try to load extended profile from 'profiles' table
+      final profile = await _db.fetchById('profiles', user.id);
+      if (profile != null) {
+        _firstNameController.text = profile['first_name'] ?? _firstNameController.text;
+        _lastNameController.text = profile['last_name'] ?? _lastNameController.text;
+        _phoneController.text = profile['phone'] ?? _phoneController.text;
+        _addressController.text = profile['address'] ?? '';
+      }
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _saveProfile() {
-    final String firstName = _firstNameController.text;
-    final String lastName = _lastNameController.text;
-    final String email = _emailController.text;
-    final String phone = _phoneController.text;
-    final String address = _addressController.text;
+  /// Save profile to Supabase 'profiles' table
+  Future<void> _saveProfile() async {
+    setState(() => _isSaving = true);
 
-    // TODO: Add logic to update the profile in the backend
-    print('Saving profile:');
-    print('First Name: $firstName');
-    print('Last Name: $lastName');
-    print('Email: $email');
-    print('Phone: $phone');
-    print('Address: $address');
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw Exception('Not authenticated');
 
-    // Show a success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Profile updated successfully!')),
-    );
+      await _db.upsertData('profiles', {
+        'id': user.id, // use auth uid as primary key
+        'first_name': _firstNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -66,7 +102,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         child: Container(
           color: const Color.fromARGB(255, 207, 204, 204),
           child: Padding(
@@ -137,8 +175,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromRGBO(217, 221, 217, 1),
                           ),
-                          onPressed: _saveProfile,
-                          child: Text('Save Changes', style: TextStyle(color: Colors.black)),
+                          onPressed: _isSaving ? null : _saveProfile,
+                          child: _isSaving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : Text('Save Changes', style: TextStyle(color: Colors.black)),
                         ),
                       ),
                     ],
